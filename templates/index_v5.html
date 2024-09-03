@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serial Data Viewer</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Live Cell Data</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: center;
+        }
+        #loading-indicator {
+            font-weight: bold;
+            color: red;
+            margin-bottom: 10px;
+            display: none; /* Hidden initially */
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- Form to select version -->
+        <form id="portForm" method="POST">
+            <div class="mb-3">
+                <label for="version" class="form-label">Select Port</label>
+                <select name="version" id="version" class="form-select">
+                    <option value="/dev/tty.usbserial-565A0092501">Port For Mac</option>
+                    <option value="COM3">Port For Windows</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
+
+        <div id="dataDisplay" class="mt-4">
+            <h2>Live Cell Data</h2>
+            <div id="packData">
+                <p>Current Limit: <span id="current_limit">N/A</span></p>
+                <p>Voltage: <span id="voltage">N/A</span></p>
+                <p>Pack Current: <span id="pack_current">N/A</span></p>
+                <p>Pack SOC: <span id="pack_soc">N/A</span></p>
+                <p>BMS Version: <span id="bms_version">N/A</span></p>
+            </div>
+            <table id="icTable" class="table mt-3">
+                <thead>
+                    <tr>
+                        <th>Cell</th>
+                        <th>Voltage</th>
+                        <th>PWM</th>
+                        <th>Temperature</th>
+                        <th>Resistance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Cells data will be dynamically inserted here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function(){
+            $('#portForm').on('submit', function(event){
+                event.preventDefault();
+                const selectedPort = $('#version').val();
+                $.post('/set_port', {port: selectedPort}, function(data){
+                    console.log(data);
+                    alert(`Started reading from port: ${data.port}`);
+                });
+            });
+
+            function fetchData() {
+                $.getJSON('/data', function(data) {
+                    $('#current_limit').text(data.current_limits['30A_limit'] + ',' + data.current_limits['10A_limit']);
+                    $('#voltage').text(data.pack_info['Pack Voltage']);
+                    $('#pack_current').text(data.pack_info['Pack Current']);
+                    $('#pack_soc').text(data.pack_info['Pack SOC']);
+                    $('#bms_version').text(data.pack_info['BMS Version']);
+
+                    // Clear the table
+                    $('#icTable tbody').empty();
+
+                    // Update IC Data
+                    $.each(data.ic_data, function(ic, details) {
+                        $.each(details.cells, function(index, cell){
+                            $('#icTable tbody').append(
+                                `<tr>
+                                    <td>IC${ic} Cell ${cell.Cell}</td>
+                                    <td>${cell.Voltage}</td>
+                                    <td>${details.PWM}</td>
+                                    <td>${details.Temperature}</td>
+                                    <td>${details.Resistance}</td>
+                                </tr>`
+                            );
+                        });
+                    });
+                });
+            }
+
+            // Poll the server for new data every second
+            setInterval(fetchData, 1000);
+        });
+    </script>
+</body>
+</html>
